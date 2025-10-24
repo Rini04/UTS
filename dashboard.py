@@ -11,8 +11,8 @@ import random
 # ==========================
 @st.cache_resource
 def load_models():
-    yolo_model = YOLO("model/Rini Safariani_Laporan 4.pt")  # Model deteksi objek
-    classifier = tf.keras.models.load_model("model/model_Rini_Laporan 2.h5")  # Model klasifikasi
+    yolo_model = YOLO("model/Rini Safariani_Laporan 4.pt")
+    classifier = tf.keras.models.load_model("model/model_Rini_Laporan 2.h5")
     return yolo_model, classifier
 
 yolo_model, classifier = load_models()
@@ -34,9 +34,7 @@ animal_info = {
 # UI
 # ==========================
 st.title("🧠 Image Classification & Object Detection App")
-
 menu = st.sidebar.selectbox("Pilih Mode:", ["Deteksi Objek (YOLO)", "Klasifikasi Gambar"])
-
 uploaded_file = st.file_uploader("Unggah Gambar", type=["jpg", "jpeg", "png"])
 
 # ==========================
@@ -52,6 +50,11 @@ st.markdown(
         background-position: center;
         background-repeat: no-repeat;
         background-attachment: fixed;
+    }}
+    .info-box {{
+        background-color: rgba(255, 255, 255, 0.8);
+        padding: 20px;
+        border-radius: 10px;
     }}
     </style>
     """,
@@ -88,6 +91,7 @@ if uploaded_file is not None:
             info = animal_info[class_index]
             bg_url = info["bg"]
 
+            # Ganti background
             st.markdown(
                 f'''
                 <style>
@@ -103,10 +107,18 @@ if uploaded_file is not None:
                 unsafe_allow_html=True
             )
 
-            st.write("### Nama Hewan:", info["nama"])
-            st.write("**Fakta Menarik:**", info["fakta"])
-            st.write("**Habitat:**", info["habitat"])
-            st.write("**Makanan:**", info["makanan"])
-            st.write("**Lingkungan:**", info["lingkungan"])
+            # Tampilkan info dengan card semi-transparan
+            st.markdown(
+                f'''
+                <div class="info-box">
+                    <h3>Nama Hewan: {info["nama"]}</h3>
+                    <p><b>Fakta Menarik:</b> {info["fakta"]}</p>
+                    <p><b>Habitat:</b> {info["habitat"]}</p>
+                    <p><b>Makanan:</b> {info["makanan"]}</p>
+                    <p><b>Lingkungan:</b> {info["lingkungan"]}</p>
+                </div>
+                ''',
+                unsafe_allow_html=True
+            )
         else:
             st.write("Informasi tambahan untuk hewan ini belum tersedia.")
