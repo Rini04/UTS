@@ -1,6 +1,6 @@
-streamlit==1.25.0
-tensorflow==2.15.0
-ultralytics==8.0.152
-pillow==10.3.0
-numpy==1.26.0
-opencv-python==4.8.1.78
+streamlit
+ultralytics
+tensorflow
+opencv-python-headless
+Pillow
+numpy
