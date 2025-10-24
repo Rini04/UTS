@@ -1,124 +1,188 @@
 import streamlit as st
-from ultralytics import YOLO
 import tensorflow as tf
 from tensorflow.keras.preprocessing import image
 import numpy as np
 from PIL import Image
-import random
+import glob
+import os
+from ultralytics import YOLO
 
 # ==========================
-# Load Models
+# PAGE CONFIG
 # ==========================
+st.set_page_config(page_title="🐾 Animal Vision AI", layout="wide")
+
+# ==========================
+# CSS THEME
+# ==========================
+st.markdown("""
+    <style>
+        .stApp {
+            background: linear-gradient(145deg, #141E30, #243B55);
+            color: #f5f5f5;
+            font-family: 'Poppins', sans-serif;
+            background-image: url('https://images.unsplash.com/photo-1546182990-dffeafbe841d');
+            background-size: cover;
+            background-attachment: fixed;
+            background-blend-mode: overlay;
+        }
+        .title {text-align:center; color:#FFCC70; font-size:45px; font-weight:900; margin-top:10px; text-shadow: 2px 2px 8px rgba(0,0,0,0.5);}
+        .subtitle {text-align:center; color:#E5E5E5; font-size:18px; margin-bottom:25px;}
+        .result-box {background: rgba(255,255,255,0.12); padding:20px; border-radius:16px; box-shadow: 0 4px 18px rgba(0,0,0,0.3); backdrop-filter: blur(8px);}
+        footer {text-align:center; color:#ccc; margin-top:35px; padding:10px; border-top: 1px solid rgba(255,255,255,0.2);}
+    </style>
+""", unsafe_allow_html=True)
+
+# ==========================
+# MODEL LOADING
+# ==========================
+MODEL_FOLDER = "model"
+
+def find_first(pattern):
+    files = glob.glob(os.path.join(MODEL_FOLDER, pattern))
+    return files[0] if files else None
+
 @st.cache_resource
 def load_models():
-    yolo_model = YOLO("model/Rini Safariani_Laporan 4.pt")
-    classifier = tf.keras.models.load_model("model/model_Rini_Laporan 2.h5")
-    return yolo_model, classifier
+    # TensorFlow / Keras model
+    h5_path = find_first("*.h5")
+    model = None
+    if h5_path:
+        try:
+            model = tf.keras.models.load_model(h5_path)
+        except:
+            model = None
+    # YOLO model
+    pt_path = find_first("*.pt")
+    yolo_model = None
+    if pt_path:
+        try:
+            yolo_model = YOLO(pt_path)
+        except:
+            yolo_model = None
+    return model, h5_path, yolo_model, pt_path
 
-yolo_model, classifier = load_models()
+model, h5_info, yolo_model, pt_info = load_models()
 
 # ==========================
-# Informasi tambahan hewan
+# CLASS LABELS
+# ==========================
+class_names = ["spider", "cat", "dog", "chicken", "horse", "butterfly", "fish"]
+
+# ==========================
+# INFO DATA HEWAN
 # ==========================
 animal_info = {
-    0: {"nama": "Ikan", "fakta": "Ikan dapat bernapas di dalam air menggunakan insang...", "habitat": "Sungai, danau, laut, dan kolam.", "makanan": "Plankton, serangga, cacing, atau pelet ikan.", "lingkungan": "Menyukai air bersih, cukup oksigen, dan suhu yang sesuai spesiesnya.", "bg": "https://i.ibb.co/3NdrmQ1/fish-bg.jpg"},
-    1: {"nama": "Kucing", "fakta": "Kucing dapat tidur hingga 16 jam sehari...", "habitat": "Biasanya hidup di rumah, perkotaan, dan pedesaan.", "makanan": "Daging, ikan, dan makanan kucing komersial.", "lingkungan": "Menyukai lingkungan hangat dan aman.", "bg": "https://i.ibb.co/6B0K7Gd/cat-bg.jpg"},
-    2: {"nama": "Anjing", "fakta": "Anjing memiliki indera penciuman yang 40 kali lebih tajam...", "habitat": "Hewan peliharaan yang hidup bersama manusia di rumah.", "makanan": "Daging, sayuran, dan makanan anjing komersial.", "lingkungan": "Menyukai lingkungan yang aktif dan sosial.", "bg": "https://i.ibb.co/V2L9Fgj/dog-bg.jpg"},
-    3: {"nama": "Kuda", "fakta": "Kuda dapat berlari hingga 70 km/jam untuk jarak pendek...", "habitat": "Padang rumput, peternakan, dan daerah terbuka.", "makanan": "Rumput, jerami, biji-bijian.", "lingkungan": "Menyukai area terbuka, lapang, dan aman.", "bg": "https://i.ibb.co/SJjQ6gQ/horse-bg.jpg"},
-    4: {"nama": "Ayam", "fakta": "Ayam bisa mengenali hingga 100 wajah berbeda...", "habitat": "Peternakan, halaman rumah, dan lingkungan pedesaan.", "makanan": "Jagung, biji-bijian, serangga, dan pelet ayam.", "lingkungan": "Menyukai lingkungan hangat dengan tempat bertelur dan berjemur.", "bg": "https://i.ibb.co/mz6z3Xt/chicken-bg.jpg"},
-    5: {"nama": "Kupu-kupu", "fakta": "Kupu-kupu memiliki indra penciuman di kakinya...", "habitat": "Taman, hutan, padang bunga, dan daerah tropis.", "makanan": "Nektar bunga, buah matang.", "lingkungan": "Menyukai lingkungan dengan banyak bunga dan sinar matahari.", "bg": "https://i.ibb.co/r3qkGJY/butterfly-bg.jpg"},
-    6: {"nama": "Laba-laba", "fakta": "Laba-laba membuat jaring untuk menangkap mangsa...", "habitat": "Rumah, kebun, hutan, dan sudut gelap.", "makanan": "Serangga kecil seperti lalat, nyamuk, dan ngengat.", "lingkungan": "Menyukai tempat yang aman, gelap, dan banyak serangga.", "bg": "https://i.ibb.co/TkFBrsj/spider-bg.jpg"}
+    "spider": {"nama": "🕷 Laba-laba", "habitat": "Taman, rumah, pepohonan.",
+               "makanan": "Serangga kecil seperti lalat atau nyamuk.",
+               "fakta": "Laba-laba membuat jaring sutra yang kuat untuk menangkap mangsanya."},
+    "cat": {"nama": "🐱 Kucing", "habitat": "Lingkungan rumah manusia.",
+            "makanan": "Ikan, daging, makanan kucing kering.",
+            "fakta": "Kucing dapat tidur hingga 16 jam sehari!"},
+    "dog": {"nama": "🐶 Anjing", "habitat": "Lingkungan rumah manusia.",
+            "makanan": "Daging, tulang, makanan anjing kering.",
+            "fakta": "Anjing dikenal sangat setia terhadap pemiliknya."},
+    "chicken": {"nama": "🐔 Ayam", "habitat": "Kandang dan ladang peternakan.",
+                "makanan": "Biji-bijian dan serangga kecil.",
+                "fakta": "Ayam dapat mengenali lebih dari 100 wajah manusia!"},
+    "horse": {"nama": "🐴 Kuda", "habitat": "Padang rumput dan peternakan.",
+              "makanan": "Rumput, jerami, gandum.",
+              "fakta": "Kuda bisa tidur sambil berdiri."},
+    "butterfly": {"nama": "🦋 Kupu-kupu", "habitat": "Kebun, hutan, ladang bunga.",
+                  "makanan": "Nektar bunga.",
+                  "fakta": "Kupu-kupu mencicipi rasa dengan kakinya!"},
+    "fish": {"nama": "🐟 Ikan", "habitat": "Air tawar dan laut.",
+             "makanan": "Plankton, cacing, serangga air.",
+             "fakta": "Beberapa ikan bisa tidur dengan mata terbuka!"}
 }
 
 # ==========================
-# UI
+# HEADER
 # ==========================
-st.title("🧠 Image Classification & Object Detection App")
-menu = st.sidebar.selectbox("Pilih Mode:", ["Deteksi Objek (YOLO)", "Klasifikasi Gambar"])
-uploaded_file = st.file_uploader("Unggah Gambar", type=["jpg", "jpeg", "png"])
-
-# ==========================
-# Default background hewan random
-# ==========================
-random_bg = animal_info[random.choice(list(animal_info.keys()))]["bg"]
-st.markdown(
-    f"""
-    <style>
-    .stApp {{
-        background-image: url("{random_bg}");
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        background-attachment: fixed;
-    }}
-    .info-box {{
-        background-color: rgba(255, 255, 255, 0.8);
-        padding: 20px;
-        border-radius: 10px;
-    }}
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+st.markdown("<div class='title'>🐾 Animal Vision AI</div>", unsafe_allow_html=True)
+st.markdown("<div class='subtitle'>Klasifikasi & Deteksi Objek Hewan — Model Cerdas dan Elegan</div>", unsafe_allow_html=True)
 
 # ==========================
-# Jika ada file diupload
+# SIDEBAR
 # ==========================
-if uploaded_file is not None:
-    img = Image.open(uploaded_file)
-    st.image(img, caption="Gambar yang Diupload", use_container_width=True)
+st.sidebar.header("📦 Status Model")
+if model is None:
+    st.sidebar.warning("❌ Tidak ditemukan model .h5")
+else:
+    st.sidebar.success(f"✅ Model klasifikasi dimuat: {h5_info}")
+if yolo_model is None:
+    st.sidebar.warning("❌ Tidak ditemukan model YOLO .pt")
+else:
+    st.sidebar.success(f"✅ Model YOLO dimuat: {pt_info}")
 
-    if menu == "Deteksi Objek (YOLO)":
-        results = yolo_model(img)
-        result_img = results[0].plot()
-        st.image(result_img, caption="Hasil Deteksi", use_container_width=True)
+# ==========================
+# MODE SELECTION
+# ==========================
+mode = st.sidebar.selectbox("Pilih Mode:", ["Klasifikasi", "Deteksi Objek (YOLO)"])
+uploaded_file = st.file_uploader("📤 Unggah gambar hewan (.jpg/.jpeg/.png)", type=["jpg","jpeg","png"])
 
-    elif menu == "Klasifikasi Gambar":
-        # Preprocessing
-        img_resized = img.resize((224, 224))
-        img_array = image.img_to_array(img_resized)
-        img_array = np.expand_dims(img_array, axis=0)
-        img_array = img_array / 255.0
+# ==========================
+# PREPROCESSING & PREDIKSI
+# ==========================
+def preprocess_image(pil_img, model):
+    input_shape = model.input_shape[1:3] if model else (224,224)
+    img_resized = pil_img.resize(input_shape)
+    arr = image.img_to_array(img_resized)
+    arr = np.expand_dims(arr, axis=0)/255.0
+    return arr
 
-        # Prediksi
-        prediction = classifier.predict(img_array)
-        class_index = np.argmax(prediction)
-        st.write("### Hasil Prediksi:", class_index)
-        st.write("Probabilitas:", np.max(prediction))
+def predict_image(model, pil_img):
+    arr = preprocess_image(pil_img, model)
+    preds = model.predict(arr)
+    idx = int(np.argmax(preds))
+    confidence = float(np.max(preds))
+    label = class_names[idx] if idx < len(class_names) else "unknown"
+    return label, confidence
 
-        # Jika info hewan tersedia, tampilkan dan ganti background
-        if class_index in animal_info:
-            info = animal_info[class_index]
-            bg_url = info["bg"]
+# ==========================
+# MAIN DISPLAY
+# ==========================
+if uploaded_file:
+    img = Image.open(uploaded_file).convert("RGB")
+    st.image(img, caption="📸 Gambar yang diunggah", use_column_width=True)
+    st.markdown("---")
 
-            # Ganti background
-            st.markdown(
-                f'''
-                <style>
-                .stApp {{
-                    background-image: url("{bg_url}");
-                    background-size: cover;
-                    background-position: center;
-                    background-repeat: no-repeat;
-                    background-attachment: fixed;
-                }}
-                </style>
-                ''',
-                unsafe_allow_html=True
-            )
-
-            # Tampilkan info dengan card semi-transparan
-            st.markdown(
-                f'''
-                <div class="info-box">
-                    <h3>Nama Hewan: {info["nama"]}</h3>
-                    <p><b>Fakta Menarik:</b> {info["fakta"]}</p>
-                    <p><b>Habitat:</b> {info["habitat"]}</p>
-                    <p><b>Makanan:</b> {info["makanan"]}</p>
-                    <p><b>Lingkungan:</b> {info["lingkungan"]}</p>
-                </div>
-                ''',
-                unsafe_allow_html=True
-            )
+    if mode == "Klasifikasi":
+        if model is None:
+            st.error("Model klasifikasi tidak tersedia!")
         else:
-            st.write("Informasi tambahan untuk hewan ini belum tersedia.")
+            label, conf = predict_image(model, img)
+            if label in animal_info:
+                info_obj = animal_info[label]
+                st.success(f"🌟 Teridentifikasi: {info_obj['nama']} — Confidence: {conf*100:.2f}%")
+                st.markdown(f"""
+                <div class='result-box'>
+                    <h3>{info_obj['nama']}</h3>
+                    <b>🌍 Habitat:</b> {info_obj['habitat']}<br>
+                    <b>🍽 Makanan:</b> {info_obj['makanan']}<br>
+                    <b>💡 Fakta menarik:</b> {info_obj['fakta']}
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.warning(f"Prediksi: {label} (data tidak lengkap). Confidence: {conf*100:.2f}%")
+
+    elif mode == "Deteksi Objek (YOLO)":
+        if yolo_model is None:
+            st.error("Model YOLO (.pt) tidak tersedia!")
+        else:
+            results = yolo_model(img)
+            result_img = results[0].plot()
+            st.image(result_img, caption="📌 Hasil Deteksi YOLO", use_column_width=True)
+
+else:
+    st.info("📁 Unggah gambar untuk memulai klasifikasi atau deteksi objek.")
+
+# ==========================
+# FOOTER
+# ==========================
+st.markdown("""
+<footer>
+    🐾 <b>Animal Vision AI</b> • by Rini 🌷<br>
+    Letakkan model klasifikasi (.h5) dan YOLO (.pt) di folder <code>model/</code>
+</footer>
+""", unsafe_allow_html=True)
